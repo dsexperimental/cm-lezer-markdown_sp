@@ -1,5 +1,5 @@
 {
-  "name": "@lezer/markdown",
+  "name": "@lezer/markdown-sp",
   "version": "1.0.2",
   "description": "Incremental Markdown parser that consumes and emits Lezer trees",
   "main": "dist/index.cjs",
