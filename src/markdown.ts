@@ -41,6 +41,7 @@ class CompositeBlock {
 export enum Type {
   Document = 1,
 
+  CodeExpr,
   CodeBlock,
   FencedCode,
   Blockquote,
@@ -333,6 +334,13 @@ function isHTMLBlock(line: Line, _cx: BlockContext, breaking: boolean) {
   return -1
 }
 
+//######################################################################################//
+
+function isCodeExpr(line: Line, _cx: BlockContext) {
+  return 1 //everything is a code expression
+}
+//######################################################################################//
+
 function getListIndent(line: Line, pos: number) {
   let indentAfter = line.countIndent(pos, line.pos, line.indent)
   let indented = line.countIndent(line.skipSpace(pos), pos, indentAfter)
@@ -363,6 +371,49 @@ function addCodeText(marks: Element[], from: number, to: number) {
 // leaf block. Otherwise, it is assumed to have opened a context.
 const DefaultBlockParsers: {[name: string]: ((cx: BlockContext, line: Line) => BlockResult) | undefined} = {
   LinkReference: undefined,
+
+  //######################################################################################//
+  //Start test type
+  CodeExpr(cx, line) {
+    // This is a stand-in to detect a code expression in a code file.
+    // It runs on top of the markdown parser, but it captures every line.
+    // It roughly follows the rules programmers use in top level code expressions/blocks, without parsing the code.
+    //
+    // - All lines are the start of code expressions - unless it is a continuation of the previous code epxression
+    // - A line is a continuation of the previous code expression if it is:
+    //    (1) indented
+    //    (2) starts with a close bracket
+    //    (3) starts with a close parenthesis
+
+    let type = isCodeExpr(line, cx)
+    if (type == -1) return false
+
+    let continueIndent = 1   //allow any indent to count as a continuation
+
+    // let start = line.findColumn(base)
+    let from = cx.lineStart, to = cx.lineStart + line.text.length
+    let marks: Element[] = []
+    addCodeText(marks, from, to)
+
+    while (cx.nextLine() && line.depth >= cx.stack.length) {
+      if ( ((line.indent < continueIndent) && (line.text.charAt(0) != '}')) && (line.text.charAt(0) != ')')) {
+        break
+      } else {
+
+        addCodeText(marks, cx.lineStart - 1, cx.lineStart)
+        for (let m of line.markers) marks.push(m)
+        to = cx.lineStart + line.text.length
+        let codeStart = cx.lineStart
+        if (codeStart < to) addCodeText(marks, codeStart, to)
+      }
+    }
+
+    cx.addNode(cx.buffer.writeElements(marks, -from).finish(Type.CodeExpr, to - from), from)
+    return true
+  },
+
+  // End Test Type
+  //######################################################################################//
 
   IndentedCode(cx, line) {
     let base = line.baseIndent + 4
